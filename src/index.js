@@ -1,6 +1,10 @@
 import express from 'express'
 import pg from 'pg'
-import joi from 'joi'
+import { 
+    postCustomerSchema,
+    postGameSchema,
+    categSchema
+} from './schemas/schemas.js'
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -33,12 +37,6 @@ app.get('/categories', async (req,res) => {
 
 app.post('/categories', async (req,res) => {
     const name = req.body.name
-
-    const categSchema = joi.object({
-        name: joi.string()
-                .min(3)
-                .required()
-    })
 
     const {error} = categSchema.validate({name: name})
     if (error) {
@@ -94,14 +92,7 @@ app.post('/games', async (req, res) => {
         pricePerDay
     } = req.body
 
-    const postGameSchema = joi.object({
-        name: joi.string().required(),
-        image: joi.string().required(),
-        stockTotal: joi.number().min(1),
-        categoryId: joi.number().min(1),
-        pricePerDay: joi.number()
-    })
-
+    
     const { error } = postGameSchema.validate({
         name,
         image,
@@ -185,13 +176,6 @@ app.post('/customers', async (req,res) => {
         birthday
     } = req.body
 
-    const postCustomerSchema = joi.object({
-        name: joi.string().required().min(1),
-        phone: joi.string().required().min(10).max(11),
-        cpf: joi.string().min(11).max(11).required(),
-        birthday: joi.date().required(),
-    })
-
     const {error} = postCustomerSchema.validate(req.body)
     if (error) {
         res.status(400).send(error.details[0].message)
@@ -208,6 +192,59 @@ app.post('/customers', async (req,res) => {
         res.send(201)
     }
     catch (err){
+        console.log(err)
+        res.sendStatus(500)
+    }
+})
+
+app.put('/customers/:id', async (req,res) => {
+    const {
+        name,
+        phone,
+        cpf,
+        birthday
+    } = req.body
+
+    const { id } = req.params
+
+    const { error } = postCustomerSchema.validate(req.body)
+    if (error) {
+        res.status(400).send(error.details[0].message)
+        return
+    }
+
+    try {
+        const customer = await connection.query('SELECT * FROM customers WHERE id = $1',[id])
+        if (!customer.rows[0]) {
+            res.sendStatus(404)
+            return
+        }
+
+        const existingCpf = await connection.query(`
+            SELECT * 
+            FROM customers 
+            WHERE 
+                cpf = $1 AND
+                id <> $2
+        `,[cpf,id])
+        
+        if (!!existingCpf.rowCount && existingCpf.rows[0]) {
+            res.sendStatus(409)
+            return
+        } 
+
+        await connection.query(`
+            UPDATE customers 
+             SET 
+                name = $1, 
+                phone = $2, 
+                cpf = $3, 
+                birthday = $4 
+            WHERE id = $5;
+        `,[name,phone,cpf,birthday,id])
+        res.sendStatus(200)
+    }
+    catch (err) {
         console.log(err)
         res.sendStatus(500)
     }
