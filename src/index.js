@@ -139,4 +139,78 @@ app.post('/games', async (req, res) => {
     }
 })
 
+app.get('/customers', async (req,res) => {
+    const { cpf } = req.query
+    
+    try {
+        let result;
+        if (cpf) {
+            result = await connection.query(`SELECT * FROM customers WHERE cpf LIKE $1`,[cpf + '%'])
+        } else {
+            result = await connection.query(`SELECT * FROM customers`)
+        }
+        
+        res.send(result.rows)
+    } 
+    catch (err) {
+        console.log(err)
+        res.sendStatus(500)
+        return
+    }
+})
+
+app.get('/customers/:id', async (req,res) => {
+    const { id } = req.params
+    
+    try {
+        const result = await connection.query(`SELECT * FROM customers WHERE id = $1`,[id])
+        if (!result.rows[0]) {
+            res.sendStatus(404)
+            return
+        }
+        res.send(result.rows[0])
+    } 
+    catch (err) {
+        console.log(err)
+        res.sendStatus(500)
+        return
+    }
+})
+
+app.post('/customers', async (req,res) => {
+    const {
+        name,
+        phone,
+        cpf,
+        birthday
+    } = req.body
+
+    const postCustomerSchema = joi.object({
+        name: joi.string().required().min(1),
+        phone: joi.string().required().min(10).max(11),
+        cpf: joi.string().min(11).max(11).required(),
+        birthday: joi.date().required(),
+    })
+
+    const {error} = postCustomerSchema.validate(req.body)
+    if (error) {
+        res.status(400).send(error.details[0].message)
+        return
+    }
+
+    try {
+        const existingCpf = await connection.query(`SELECT * FROM customers WHERE cpf = $1`, [cpf])
+        if (!!existingCpf.rowCount) {
+            res.status(409).send('cpf existente')
+            return
+        }
+        await connection.query('INSERT INTO customers (name,phone,cpf,birthday) VALUES ($1,$2,$3,$4)',[name,phone,cpf,birthday])
+        res.send(201)
+    }
+    catch (err){
+        console.log(err)
+        res.sendStatus(500)
+    }
+})
+
 app.listen(PORT, () => console.log(`Listening on port ${PORT}`))
