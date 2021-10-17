@@ -3,7 +3,8 @@ import pg from 'pg'
 import { 
     postCustomerSchema,
     postGameSchema,
-    categSchema
+    categSchema,
+    postRentalSchema
 } from './schemas/schemas.js'
 
 const app = express()
@@ -283,7 +284,7 @@ app.get('/rentals', async (req,res) => {
                 daysRented: rental.daysRented,
                 returnDate: rental.returnDate ? new Date(rental.returnDate).toLocaleDateString('pt-Br') : null, // troca pra uma data quando já devolvido
                 originalPrice: rental.originalPrice,
-                delayFee: new Date(rental.delayFee).toLocaleDateString('pt-Br'),
+                delayFee: rental.delayFee ? new Date(rental.delayFee).toLocaleDateString('pt-Br') : null,
                 customer: {
                     id: rental.customerId,
                     name: rental.customerName
@@ -300,6 +301,59 @@ app.get('/rentals', async (req,res) => {
         })
 
     res.send(rentals.rows);
+})
+
+app.post('/rentals', async (req,res) => {
+    const {customerId,gameId,daysRented} = req.body
+
+    const { error } = postRentalSchema.validate(req.body)
+    if (error) {
+        res.status(400).send(error.details[0].message)
+        return
+    }
+
+    try {
+        const game = await connection.query('SELECT * FROM games WHERE id=$1',[gameId])
+        if (!game.rowCount) {
+            res.status(400).send('game not found')
+            return
+        }
+        const customer = await connection.query('SELECT * FROM customers WHERE id=$1',[customerId])
+        if (!customer.rowCount) {
+            res.status(400).send('customer not found')
+            return
+        }
+
+        const rentals = await connection.query('SELECT * FROM rentals WHERE "gameId"=$1;',[gameId])
+        if (rentals.rowCount >= game.rows[0].stockTotal) {
+            res.status(400).send('max rentals reached for this game')
+            return
+        }
+        
+        const postObj = {
+            customerId,
+            gameId,
+            rentDate: new Date().toLocaleDateString('pt-Br'),    
+            daysRented,             
+            returnDate: null,          
+            originalPrice: game.rows[0].pricePerDay * daysRented,       
+            delayFee: null             
+        }
+
+        await connection.query(`
+            INSERT INTO 
+                rentals 
+                ("customerId","gameId","rentDate","daysRented","returnDate","originalPrice","delayFee")
+            VALUES
+                ($1,$2,$3,$4,$5,$6,$7)
+            `,[postObj.customerId,postObj.gameId,postObj.rentDate,postObj.daysRented,postObj.returnDate,postObj.originalPrice,postObj.delayFee])
+        
+        res.sendStatus(201)
+    }
+    catch (error) {
+        console.log(error)
+        res.sendStatus(500)
+    }
 })
 
 app.listen(PORT, () => console.log(`Listening on port ${PORT}`))
