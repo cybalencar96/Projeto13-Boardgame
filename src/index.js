@@ -1,5 +1,7 @@
 import express from 'express'
 import pg from 'pg'
+import joi from 'joi'
+import dayjs from 'dayjs'
 import { 
     postCustomerSchema,
     postGameSchema,
@@ -356,4 +358,59 @@ app.post('/rentals', async (req,res) => {
     }
 })
 
+app.post('/rentals/:id/return', async (req,res) => {
+    const { id } = req.params
+
+    const { error } = joi.object({ id: joi.number().min(1).required() }).validate({ id })
+    if (error) {
+        res.status(400).send(error.details[0].message)
+        return
+    }
+
+    try {
+    
+        const rental = await connection.query('SELECT * FROM rentals WHERE id=$1',[id])
+        if (!rental.rowCount) {
+            res.sendStatus(404)
+            return
+        }
+
+        if (rental.rows[0].returnDate) {
+            res.status(400).send('rental closed already')
+            return
+        }
+        const game = await connection.query('SELECT * FROM games WHERE id=$1',[rental.rows[0].gameId])
+        if (!game.rowCount) {
+            res.sendStatus(404)
+            return
+        }
+
+        let rentDateFormated = new Date(rental.rows[0].rentDate).toLocaleDateString('en-Us')      // DD/MM/YYYY
+            rentDateFormated = dayjs(rentDateFormated).format('YYYY-MM-DD')
+        const limitDateFormated = dayjs(rentDateFormated).add(rental.rows[0].daysRented,'day')
+
+        const returnDate = new Date().toLocaleDateString('pt-Br')
+        const returnDateUS = new Date().toLocaleDateString('en-Us')
+        const returnDateFormated = dayjs(returnDateUS).format('YYYY-MM-DD')
+
+        const daysDiff = Math.round(dayjs(returnDateFormated).diff(limitDateFormated) / 1000 / 60 / 60 / 24)
+        const delayFee = daysDiff * game.rows[0].pricePerDay
+
+        await connection.query(`
+            UPDATE rentals 
+            SET 
+                "returnDate"=$1,
+                "delayFee"=$2
+            WHERE id=$3
+        `,[returnDate,delayFee > 0 ? delayFee : 0,id])
+
+        res.sendStatus(200)
+    }
+    catch (error) {
+        console.log(error)
+        res.sendStatus(500)
+    }
+})
+
 app.listen(PORT, () => console.log(`Listening on port ${PORT}`))
+
