@@ -227,7 +227,7 @@ app.put('/customers/:id', async (req,res) => {
                 cpf = $1 AND
                 id <> $2
         `,[cpf,id])
-        
+
         if (!!existingCpf.rowCount && existingCpf.rows[0]) {
             res.sendStatus(409)
             return
@@ -242,12 +242,64 @@ app.put('/customers/:id', async (req,res) => {
                 birthday = $4 
             WHERE id = $5;
         `,[name,phone,cpf,birthday,id])
+
         res.sendStatus(200)
     }
     catch (err) {
         console.log(err)
         res.sendStatus(500)
     }
+})
+
+app.get('/rentals', async (req,res) => {
+    const { customerId, gameId } = req.query
+
+    const sqlQuery = `
+    SELECT 
+        rentals.*, 
+        customers.name AS "customerName",
+        games.name AS "gameName",
+        games."categoryId", 
+        categories.name AS "categoryName" 
+    FROM customers 
+    JOIN rentals 
+        ON customers.id = rentals."customerId" 
+    JOIN games 
+        ON games.id = rentals."gameId" 
+    JOIN categories ON games."categoryId" = categories.id
+    ${ gameId || customerId ? "WHERE" : ""} 
+        ${customerId ? `"customerId"=`+customerId : ""} 
+    ${ gameId && customerId ? "AND" : ""}
+        ${ gameId ? '"gameId"='+gameId : ""};
+    `
+
+    const rentals = await connection.query(sqlQuery)
+    rentals.rows = rentals.rows.map(rental => {
+        const obj = {
+                id: rental.id,
+                customerId: rental.customerId,
+                gameId: rental.gameId,
+                rentDate: new Date(rental.rentDate).toLocaleDateString('pt-Br'),
+                daysRented: rental.daysRented,
+                returnDate: rental.returnDate ? new Date(rental.returnDate).toLocaleDateString('pt-Br') : null, // troca pra uma data quando já devolvido
+                originalPrice: rental.originalPrice,
+                delayFee: new Date(rental.delayFee).toLocaleDateString('pt-Br'),
+                customer: {
+                    id: rental.customerId,
+                    name: rental.customerName
+                },
+                game: {
+                    id: rental.gameId,
+                    name: rental.gameName,
+                    categoryId: rental.categoryId,
+                    categoryName: rental.categoryName
+                }
+            }
+
+            return obj
+        })
+
+    res.send(rentals.rows);
 })
 
 app.listen(PORT, () => console.log(`Listening on port ${PORT}`))
