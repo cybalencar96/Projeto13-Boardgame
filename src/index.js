@@ -412,5 +412,35 @@ app.post('/rentals/:id/return', async (req,res) => {
     }
 })
 
+app.delete('/rentals/:id', async (req,res) => {
+    const { id } = req.params
+
+    const { error } = joi.object({ id: joi.number().min(1).required() }).validate({ id })
+    if (error) {
+        res.status(400).send(error.details[0].message)
+        return
+    }
+
+    try {
+        const existingRental = await connection.query('SELECT * FROM rentals WHERE id=$1',[id])
+        if (!existingRental.rowCount) {
+            res.sendStatus(404)
+            return
+        }
+
+        if (existingRental.rows[0].returnDate) {
+            res.status(400).send('rental já finalizada. Não exclui por causa de historico? Pq poderia excluir uma nao finalizada entao?')
+            return
+        }
+
+        await connection.query('DELETE FROM rentals WHERE id=$1',[id])
+        res.sendStatus(200)
+    } 
+    catch (err) {
+        console.log(err)
+        res.sendStatus(500)
+    }
+})
+
 app.listen(PORT, () => console.log(`Listening on port ${PORT}`))
 
