@@ -28,18 +28,42 @@ app.get('/alive', (req,res) => {
 })
 
 app.get('/categories', async (req,res) => {
-    const { offset, limit } = req.query
+    const { offset, limit, order, desc } = req.query
+
+    let columns;
     try {
-        const query = `
-            SELECT * FROM categories
-            ${limit ? "LIMIT $1": ""}
-            ${offset ? "OFFSET $2" : ""}
-        `
+        const aux = await connection.query('SELECT * FROM categories')
+        columns = aux.fields.map(field => field.name)
+    } catch (err) {
+        console.log(err)
+        res.send(500)
+    }
 
-        const params = []
-        limit && params.push(limit)
-        offset && params.push(offset)
+    const params = []
+    let count = 1;
+    let query = 'SELECT * FROM categories'
 
+    if (order && columns.includes(order)) {
+        query += ' ORDER BY ' + order
+    }
+
+    if (order && desc === 'true') {
+        query += ' DESC'
+    }
+
+    if (limit) {
+        query += ' LIMIT $' + count
+        count++
+        params.push(limit)
+    }
+
+    if (offset) {
+        query += ' OFFSET $' + count
+        count++
+        params.push(offset)
+    }
+
+    try {
         const result = await connection.query(query,params)
         res.send(result.rows)
     }
@@ -74,32 +98,48 @@ app.post('/categories', async (req,res) => {
 })
 
 app.get('/games', async (req,res) => {
-    const {name, limit, offset} = req.query
-    let count = 1;
+    const {name, limit, offset, order, desc} = req.query
+
+    let columns;
     try {
-        
-        let query = `SELECT * FROM games`
-        const params = []
-        
-        if (name) {
-            query = query +  " WHERE name LIKE $" + count
-            count++
-            params.push(name.toUpperCase() + '%')
-        }
+        const aux = await connection.query('SELECT * FROM games')
+        columns = aux.fields.map(field => field.name)
+    } catch (err) {
+        console.log(err)
+        res.send(500)
+    }
 
-        if (limit) {
-            query = query +  " LIMIT $" + count
-            count++
-            params.push(limit)
-        }
+    let count = 1;
 
-        if (offset) {
-            query = query +  " OFFSET $" + count
-            params.push(offset)
-        }
+    let query = `SELECT * FROM games`
+    const params = []
+    
+    if (name) {
+        query = query +  " WHERE name LIKE $" + count
+        count++
+        params.push(name.toUpperCase() + '%')
+    }
 
-        console.log(query)
+    if (order && columns.includes(order)) {
+        query += ' ORDER BY ' + order
+    }
 
+    if (order && desc === 'true') {
+        query += ' DESC'
+    }
+
+    if (limit) {
+        query = query +  " LIMIT $" + count
+        count++
+        params.push(limit)
+    }
+
+    if (offset) {
+        query = query +  " OFFSET $" + count
+        params.push(offset)
+    }
+
+    try {
         const result = await connection.query(query,params);
         
         if (!result.rowCount) {
@@ -163,8 +203,18 @@ app.post('/games', async (req, res) => {
 })
 
 app.get('/customers', async (req,res) => {
-    const { cpf, limit, offset } = req.query
+    const { cpf, limit, offset, order, desc } = req.query
     
+    let columns;
+    try {
+        const aux = await connection.query('SELECT * FROM customers')
+        columns = aux.fields.map(field => field.name)
+    } catch (err) {
+        console.log(err)
+        res.send(500)
+    }
+
+
     let query = 'SELECT * FROM customers'
     let count = 1;
     const params = []
@@ -173,6 +223,14 @@ app.get('/customers', async (req,res) => {
         query = query + ' WHERE cpf LIKE $' + count
         count++
         params.push(cpf + '%')
+    }
+    
+    if (order && columns.includes(order)) {
+        query += ' ORDER BY ' + order
+    }
+
+    if (order && desc === 'true') {
+        query += ' DESC'
     }
 
     if (limit) {
@@ -187,7 +245,6 @@ app.get('/customers', async (req,res) => {
         params.push(offset)
     }
 
-    console.log(query)
     try {
         const result = await connection.query(query, params)
         res.send(result.rows)
@@ -301,7 +358,16 @@ app.put('/customers/:id', async (req,res) => {
 })
 
 app.get('/rentals', async (req,res) => {
-    const { customerId, gameId, limit, offset } = req.query
+    const { customerId, gameId, limit, offset, order, desc } = req.query
+
+    let columns;
+    try {
+        const aux = await connection.query('SELECT * FROM rentals')
+        columns = aux.fields.map(field => field.name)
+    } catch (err) {
+        console.log(err)
+        res.send(500)
+    }
 
     const params = []
     let count = 1;
@@ -336,6 +402,14 @@ app.get('/rentals', async (req,res) => {
             count++
             params.push(gameId)
         }
+    }
+
+    if (order && columns.includes(order)) {
+        query += ' ORDER BY ' + order
+    }
+
+    if (order && desc === 'true') {
+        query += ' DESC'
     }
 
     if (limit) {
