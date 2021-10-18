@@ -357,8 +357,19 @@ app.put('/customers/:id', async (req,res) => {
     }
 })
 
+
+
 app.get('/rentals', async (req,res) => {
-    const { customerId, gameId, limit, offset, order, desc } = req.query
+    const { 
+        customerId, 
+        gameId, 
+        limit, 
+        offset, 
+        order, 
+        desc, 
+        status, 
+        startDate 
+    } = req.query
 
     let columns;
     try {
@@ -402,6 +413,19 @@ app.get('/rentals', async (req,res) => {
             count++
             params.push(gameId)
         }
+    }
+
+    if (status === 'open') {
+        query += ' AND "returnDate" IS NULL'
+    }
+    if (status === 'closed') {
+        query += ' AND "returnDate" IS NOT NULL'
+    }
+    
+    if (startDate && validateDateFormat(startDate,'YYYY-MM-DD')) {
+        query += ' AND "rentDate" > $' + count
+        count++
+        params.push(startDate)
     }
 
     if (order && columns.includes(order)) {
@@ -593,3 +617,6 @@ app.delete('/rentals/:id', async (req,res) => {
 
 app.listen(PORT, () => console.log(`Listening on port ${PORT}`))
 
+function validateDateFormat(date, format) {
+    return dayjs(date, format).format(format) === date;
+}
