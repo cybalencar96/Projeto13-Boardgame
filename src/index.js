@@ -2,6 +2,7 @@ import express from 'express'
 import pg from 'pg'
 import joi from 'joi'
 import dayjs from 'dayjs'
+import cors from 'cors'
 import { 
     postCustomerSchema,
     postGameSchema,
@@ -21,7 +22,9 @@ const connection = new Pool({
     database: 'boardcamp',
     port: 5432
 })
+
 app.use(express.json())
+app.use(cors());
 
 app.get('/alive', (req,res) => {
     res.send("I'm alive!!!")
@@ -146,6 +149,7 @@ app.get('/games', async (req,res) => {
             res.sendStatus(404)
             return
         }
+
         res.send(result.rows)
         return
     }
@@ -295,7 +299,7 @@ app.post('/customers', async (req,res) => {
             return
         }
         await connection.query('INSERT INTO customers (name,phone,cpf,birthday) VALUES ($1,$2,$3,$4)',[name,phone,cpf,birthday])
-        res.send(201)
+        res.sendStatus(201)
     }
     catch (err){
         console.log(err)
