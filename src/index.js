@@ -615,6 +615,36 @@ app.delete('/rentals/:id', async (req,res) => {
     }
 })
 
+app.get('/rentals/metrics', async (req,res) => {
+    try {
+        const revenueQuery = await connection.query(`
+            SELECT 
+                SUM(sum_price + sum_fee) 
+            FROM (
+                SELECT 
+                    SUM("originalPrice") AS sum_price, 
+                    SUM("delayFee") AS sum_fee 
+                FROM rentals
+            ) AS table_sum
+        `)
+
+        const rentalsQuery = await connection.query(`SELECT SUM("originalPrice") AS sum FROM rentals`)
+        const averageQuery = await connection.query(`SELECT COUNT(id) AS count FROM rentals`)
+
+        const metrics = {
+            revenue: Number(revenueQuery.rows[0].sum),
+            rentals: Number(rentalsQuery.rows[0].sum),
+            average: revenueQuery.rows[0].sum / averageQuery.rows[0].count 
+        }
+
+        res.send(metrics)
+    }
+    catch (err) {
+        console.log(err)
+        res.sendStatus(500)
+    }
+})
+
 app.listen(PORT, () => console.log(`Listening on port ${PORT}`))
 
 function validateDateFormat(date, format) {
