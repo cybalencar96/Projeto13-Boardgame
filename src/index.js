@@ -28,11 +28,22 @@ app.get('/alive', (req,res) => {
 })
 
 app.get('/categories', async (req,res) => {
+    const { offset, limit } = req.query
     try {
-        const result = await connection.query('SELECT * FROM categories')
+        const query = `
+            SELECT * FROM categories
+            ${limit ? "LIMIT $1": ""}
+            ${offset ? "OFFSET $2" : ""}
+        `
+
+        const params = []
+        limit && params.push(limit)
+        offset && params.push(offset)
+
+        const result = await connection.query(query,params)
         res.send(result.rows)
     }
-    catch {
+    catch (err) {
         console.log(err);
         res.sendStatus(400)
     }
@@ -63,16 +74,34 @@ app.post('/categories', async (req,res) => {
 })
 
 app.get('/games', async (req,res) => {
-    const name = req.query.name
-    
+    const {name, limit, offset} = req.query
+    let count = 1;
     try {
-        let result;
+        
+        let query = `SELECT * FROM games`
+        const params = []
+        
         if (name) {
-            const uppName = name.toUpperCase() + '%'
-            result = await connection.query("SELECT * FROM games WHERE name LIKE $1",[uppName])
-        } else {
-            result = await connection.query('SELECT * FROM games;')
+            query = query +  " WHERE name LIKE $" + count
+            count++
+            params.push(name.toUpperCase() + '%')
         }
+
+        if (limit) {
+            query = query +  " LIMIT $" + count
+            count++
+            params.push(limit)
+        }
+
+        if (offset) {
+            query = query +  " OFFSET $" + count
+            params.push(offset)
+        }
+
+        console.log(query)
+
+        const result = await connection.query(query,params);
+        
         if (!result.rowCount) {
             res.sendStatus(404)
             return
@@ -134,16 +163,33 @@ app.post('/games', async (req, res) => {
 })
 
 app.get('/customers', async (req,res) => {
-    const { cpf } = req.query
+    const { cpf, limit, offset } = req.query
     
+    let query = 'SELECT * FROM customers'
+    let count = 1;
+    const params = []
+
+    if (cpf) {
+        query = query + ' WHERE cpf LIKE $' + count
+        count++
+        params.push(cpf + '%')
+    }
+
+    if (limit) {
+        query = query + ' LIMIT $' + count
+        count++
+        params.push(limit)
+    }
+
+    if (offset) {
+        query = query + ' OFFSET $' + count
+        count++
+        params.push(offset)
+    }
+
+    console.log(query)
     try {
-        let result;
-        if (cpf) {
-            result = await connection.query(`SELECT * FROM customers WHERE cpf LIKE $1`,[cpf + '%'])
-        } else {
-            result = await connection.query(`SELECT * FROM customers`)
-        }
-        
+        const result = await connection.query(query, params)
         res.send(result.rows)
     } 
     catch (err) {
@@ -255,9 +301,11 @@ app.put('/customers/:id', async (req,res) => {
 })
 
 app.get('/rentals', async (req,res) => {
-    const { customerId, gameId } = req.query
+    const { customerId, gameId, limit, offset } = req.query
 
-    const sqlQuery = `
+    const params = []
+    let count = 1;
+    let query = `
     SELECT 
         rentals.*, 
         customers.name AS "customerName",
@@ -269,14 +317,41 @@ app.get('/rentals', async (req,res) => {
         ON customers.id = rentals."customerId" 
     JOIN games 
         ON games.id = rentals."gameId" 
-    JOIN categories ON games."categoryId" = categories.id
-    ${ gameId || customerId ? "WHERE" : ""} 
-        ${customerId ? `"customerId"=`+customerId : ""} 
-    ${ gameId && customerId ? "AND" : ""}
-        ${ gameId ? '"gameId"='+gameId : ""};
-    `
+    JOIN categories ON games."categoryId" = categories.id`
 
-    const rentals = await connection.query(sqlQuery)
+    if (customerId || gameId) {
+        query = query + ' WHERE'
+        if (customerId) {
+            query = query + ' "customerId"=$'+count
+            count++
+            params.push(customerId)
+        }
+
+        if (customerId && gameId) {
+            query = query + ' AND'
+        }
+
+        if (gameId) {
+            query = query + ' "gameId"=$' + count
+            count++
+            params.push(gameId)
+        }
+    }
+
+    if (limit) {
+        query = query + ' LIMIT $' + count
+        count++
+        params.push(limit)
+    }
+
+    if (offset) {
+        query = query + ' OFFSET $' + count
+        count++
+        params.push(offset)
+    }
+
+
+    const rentals = await connection.query(query,params)
     rentals.rows = rentals.rows.map(rental => {
         const obj = {
                 id: rental.id,
