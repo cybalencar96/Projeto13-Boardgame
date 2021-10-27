@@ -1,2 +1,4 @@
 database-boardcamp
 node_modules
+.env
+.env.test
