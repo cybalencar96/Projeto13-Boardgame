@@ -11,17 +11,18 @@ import {
 } from './schemas/schemas.js'
 
 const app = express()
-const PORT = process.env.PORT || 4000
 
 const { Pool } = pg
 
-const connection = new Pool({
-    host: 'localhost',
-    user: 'postgres',
-    password: '33150602',
-    database: 'boardcamp',
-    port: 5432
-})
+const connectionData = {
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    database: process.env.DB_NAME,
+    port: process.env.DB_PORT
+}
+
+const connection = new Pool(connectionData)
 
 app.use(express.json())
 app.use(cors());
@@ -39,7 +40,7 @@ app.get('/categories', async (req,res) => {
         columns = aux.fields.map(field => field.name)
     } catch (err) {
         console.log(err)
-        res.send(500)
+        return res.send(500)
     }
 
     const params = []
@@ -68,11 +69,11 @@ app.get('/categories', async (req,res) => {
 
     try {
         const result = await connection.query(query,params)
-        res.send(result.rows)
+        return res.send(result.rows)
     }
     catch (err) {
         console.log(err);
-        res.sendStatus(400)
+        return res.sendStatus(400)
     }
 })
 
@@ -649,8 +650,13 @@ app.get('/rentals/metrics', async (req,res) => {
     }
 })
 
-app.listen(PORT, () => console.log(`Listening on port ${PORT}`))
 
 function validateDateFormat(date, format) {
     return dayjs(date, format).format(format) === date;
+}
+
+export default app
+
+export {
+    connection
 }
